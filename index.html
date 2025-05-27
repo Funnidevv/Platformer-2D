@@ -3,41 +3,97 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OvO Parkour</title>
+  <title>OvO Deluxe</title>
   <style>
+    * { box-sizing: border-box; }
     html, body {
       margin: 0;
       padding: 0;
       background: #111;
       overflow: hidden;
-      font-family: sans-serif;
+      font-family: "Segoe UI", sans-serif;
     }
     canvas {
       display: block;
-      background: #222;
+      background: #202020;
     }
-    #editorUI {
+    #ui {
       position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    .menu, .settings, .level-select, .hud {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0, 0, 0, 0.85);
+      padding: 20px;
+      border-radius: 16px;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      pointer-events: auto;
+    }
+    .menu.show, .settings.show, .level-select.show, .hud.show {
+      display: flex;
+    }
+    button {
+      padding: 10px 20px;
+      border: none;
+      background: #0af;
+      color: white;
+      font-size: 1.2em;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #08c;
+    }
+    .hud {
       top: 10px;
       left: 10px;
-      background: rgba(0,0,0,0.7);
+      transform: none;
+      flex-direction: row;
+      gap: 20px;
+      font-size: 1.1em;
       color: white;
-      padding: 10px;
-      border-radius: 10px;
-      display: none;
-    }
-    #editorUI button {
-      margin: 4px;
+      background: none;
     }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas"></canvas>
-  <div id="editorUI">
-    <button onclick="setMode('platform')">Platform</button>
-    <button onclick="setMode('spike')">Spike</button>
-    <button onclick="setMode('goal')">Goal</button>
-    <button onclick="saveLevel()">Export Level</button>
+  <div id="ui">
+    <div id="mainMenu" class="menu show">
+      <h1>OvO Deluxe</h1>
+      <button onclick="startGame()">Play</button>
+      <button onclick="openLevelSelect()">Level Select</button>
+      <button onclick="openSettings()">Settings</button>
+    </div>
+
+    <div id="settingsMenu" class="settings">
+      <h2>Settings</h2>
+      <button onclick="toggleSound()">Toggle Sound</button>
+      <button onclick="resetProgress()">Reset Progress</button>
+      <button onclick="backToMenu()">Back</button>
+    </div>
+
+    <div id="levelSelectMenu" class="level-select">
+      <h2>Select Level</h2>
+      <div id="levelButtons"></div>
+      <button onclick="backToMenu()">Back</button>
+    </div>
+
+    <div id="hud" class="hud">
+      <span id="levelLabel">Level: 1</span>
+      <span id="timerLabel">Time: 0s</span>
+    </div>
   </div>
 
   <script>
@@ -46,44 +102,117 @@
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    let gameMode = "play";
-    let editMode = "platform";
+    const ui = id => document.getElementById(id);
 
-    const keys = {};
-    document.addEventListener("keydown", e => keys[e.key] = true);
-    document.addEventListener("keyup", e => keys[e.key] = false);
+    let currentLevelIndex = 0;
+    let timer = 0;
+    let timerInterval;
+    let levels = [];
+
+    function loadLevels() {
+      levels = [
+        {
+          name: "Level 1",
+          spawn: { x: 50, y: 50 },
+          goal: { x: 700, y: 400, width: 30, height: 30 },
+          platforms: [
+            { x: 0, y: 450, width: canvas.width, height: 40 },
+            { x: 300, y: 350, width: 100, height: 20 }
+          ],
+          spikes: [
+            { x: 500, y: 440, width: 40, height: 40 }
+          ],
+          movingPlatforms: []
+        },
+        // Add 4 more levels...
+      ];
+    }
+
+    function resetProgress() {
+      localStorage.clear();
+      alert("Progress reset!");
+    }
+
+    function toggleSound() {
+      alert("Sound toggled (not implemented)");
+    }
+
+    function startGame() {
+      ui("mainMenu").classList.remove("show");
+      ui("hud").classList.add("show");
+      loadLevel(currentLevelIndex);
+    }
+
+    function openLevelSelect() {
+      ui("mainMenu").classList.remove("show");
+      ui("levelSelectMenu").classList.add("show");
+      populateLevelButtons();
+    }
+
+    function openSettings() {
+      ui("mainMenu").classList.remove("show");
+      ui("settingsMenu").classList.add("show");
+    }
+
+    function backToMenu() {
+      ui("settingsMenu").classList.remove("show");
+      ui("levelSelectMenu").classList.remove("show");
+      ui("mainMenu").classList.add("show");
+    }
+
+    function populateLevelButtons() {
+      const container = ui("levelButtons");
+      container.innerHTML = "";
+      levels.forEach((level, index) => {
+        const btn = document.createElement("button");
+        btn.textContent = level.name;
+        btn.onclick = () => {
+          currentLevelIndex = index;
+          ui("levelSelectMenu").classList.remove("show");
+          ui("hud").classList.add("show");
+          loadLevel(index);
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    function loadLevel(index) {
+      level = levels[index];
+      player = new Player(level.spawn.x, level.spawn.y);
+      timer = 0;
+      ui("levelLabel").textContent = `Level: ${index + 1}`;
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        timer++;
+        ui("timerLabel").textContent = `Time: ${timer}s`;
+      }, 1000);
+    }
 
     class Player {
       constructor(x, y) {
-        this.startX = x;
-        this.startY = y;
-        this.reset();
+        this.x = x;
+        this.y = y;
         this.width = 30;
         this.height = 30;
-        this.speed = 4;
-        this.jumpForce = -12;
-        this.grounded = false;
-      }
-
-      reset() {
-        this.x = this.startX;
-        this.y = this.startY;
         this.velX = 0;
         this.velY = 0;
+        this.grounded = false;
+        this.speed = 4;
+        this.jumpForce = -12;
       }
 
       update() {
+        const g = 0.6;
         if (keys["ArrowLeft"]) this.velX = -this.speed;
         else if (keys["ArrowRight"]) this.velX = this.speed;
         else this.velX = 0;
-
-        this.velY += 0.6; // gravity
 
         if (keys["ArrowUp"] && this.grounded) {
           this.velY = this.jumpForce;
           this.grounded = false;
         }
 
+        this.velY += g;
         this.x += this.velX;
         this.y += this.velY;
 
@@ -98,111 +227,37 @@
             this.grounded = true;
           }
         }
-
-        for (let spike of level.spikes) {
-          if (this.x < spike.x + spike.width &&
-              this.x + this.width > spike.x &&
-              this.y < spike.y + spike.height &&
-              this.y + this.height > spike.y) {
-            this.reset();
-          }
-        }
-
-        if (this.x < level.goal.x + level.goal.width &&
-            this.x + this.width > level.goal.x &&
-            this.y < level.goal.y + level.goal.height &&
-            this.y + this.height > level.goal.y) {
-          alert("Level Complete!");
-          saveProgress();
-          this.reset();
-        }
       }
 
       draw() {
-        ctx.fillStyle = "#0ff";
+        ctx.fillStyle = "#0af";
         ctx.fillRect(this.x, this.y, this.width, this.height);
       }
     }
 
-    function drawPlatform(p) {
-      ctx.fillStyle = "#888";
-      ctx.fillRect(p.x, p.y, p.width, p.height);
-    }
+    const keys = {};
+    document.addEventListener("keydown", e => keys[e.key] = true);
+    document.addEventListener("keyup", e => keys[e.key] = false);
 
-    function drawSpike(s) {
-      ctx.fillStyle = "red";
-      ctx.fillRect(s.x, s.y, s.width, s.height);
-    }
+    let player, level;
 
-    function drawGoal(g) {
-      ctx.fillStyle = "lime";
-      ctx.fillRect(g.x, g.y, g.width, g.height);
-    }
-
-    let level = loadLevel();
-    const player = new Player(level.spawn.x, level.spawn.y);
-
-    function loadLevel() {
-      const saved = localStorage.getItem("customLevel");
-      if (saved) return JSON.parse(saved);
-      return {
-        spawn: { x: 50, y: 50 },
-        goal: { x: 700, y: canvas.height - 90, width: 30, height: 30 },
-        platforms: [
-          { x: 0, y: canvas.height - 40, width: canvas.width, height: 40 },
-          { x: 200, y: canvas.height - 120, width: 100, height: 20 }
-        ],
-        spikes: [
-          { x: 400, y: canvas.height - 40, width: 40, height: 40 }
-        ]
-      };
-    }
-
-    function saveProgress() {
-      localStorage.setItem("levelComplete", true);
-    }
-
-    function saveLevel() {
-      localStorage.setItem("customLevel", JSON.stringify(level));
-      alert("Level saved to localStorage!");
-    }
-
-    function setMode(mode) {
-      editMode = mode;
-    }
-
-    canvas.addEventListener("click", e => {
-      if (gameMode !== "edit") return;
-      const rect = canvas.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-
-      if (editMode === "platform")
-        level.platforms.push({ x, y, width: 100, height: 20 });
-      else if (editMode === "spike")
-        level.spikes.push({ x, y, width: 30, height: 30 });
-      else if (editMode === "goal")
-        level.goal = { x, y, width: 30, height: 30 };
-    });
-
-    function gameLoop() {
+    function draw() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (gameMode === "play") {
-        player.update();
-        player.draw();
-      }
-      level.platforms.forEach(drawPlatform);
-      level.spikes.forEach(drawSpike);
-      drawGoal(level.goal);
-      requestAnimationFrame(gameLoop);
+      if (!player) return;
+      player.update();
+      level.platforms.forEach(p => {
+        ctx.fillStyle = "#888";
+        ctx.fillRect(p.x, p.y, p.width, p.height);
+      });
+      ctx.fillStyle = "lime";
+      const g = level.goal;
+      ctx.fillRect(g.x, g.y, g.width, g.height);
+      player.draw();
+      requestAnimationFrame(draw);
     }
 
-    gameLoop();
-
-    if (location.hash === "#editor") {
-      gameMode = "edit";
-      document.getElementById("editorUI").style.display = "block";
-    }
+    loadLevels();
+    draw();
   </script>
 </body>
 </html>
