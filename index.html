@@ -3,261 +3,163 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OvO Deluxe</title>
+  <title>Platformer 2D</title>
   <style>
-    * { box-sizing: border-box; }
-    html, body {
+    body {
       margin: 0;
-      padding: 0;
-      background: #111;
-      overflow: hidden;
-      font-family: "Segoe UI", sans-serif;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to bottom, #1e1e2f, #141421);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
-    canvas {
-      display: block;
-      background: #202020;
+
+    h1 {
+      font-size: 3rem;
+      margin: 2rem;
+      text-shadow: 2px 2px #000;
     }
-    #ui {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-    }
-    .menu, .settings, .level-select, .hud {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: rgba(0, 0, 0, 0.85);
-      padding: 20px;
-      border-radius: 16px;
+
+    .menu, .settings, .level-select, .shop, .hud {
       display: none;
       flex-direction: column;
       align-items: center;
-      gap: 10px;
-      pointer-events: auto;
+      gap: 1rem;
     }
-    .menu.show, .settings.show, .level-select.show, .hud.show {
-      display: flex;
-    }
-    button {
-      padding: 10px 20px;
+
+    .btn {
+      padding: 1rem 2rem;
+      font-size: 1.2rem;
       border: none;
-      background: #0af;
+      border-radius: 12px;
+      background-color: #4e63ea;
       color: white;
-      font-size: 1.2em;
-      border-radius: 8px;
       cursor: pointer;
-      transition: background 0.3s;
+      transition: background 0.3s ease;
     }
-    button:hover {
-      background: #08c;
+
+    .btn:hover {
+      background-color: #3749c2;
     }
+
     .hud {
-      top: 10px;
-      left: 10px;
-      transform: none;
-      flex-direction: row;
-      gap: 20px;
-      font-size: 1.1em;
-      color: white;
-      background: none;
+      position: fixed;
+      top: 0;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    .hidden {
+      display: none !important;
     }
   </style>
 </head>
 <body>
-  <canvas id="gameCanvas"></canvas>
-  <div id="ui">
-    <div id="mainMenu" class="menu show">
-      <h1>OvO Deluxe</h1>
-      <button onclick="startGame()">Play</button>
-      <button onclick="openLevelSelect()">Level Select</button>
-      <button onclick="openSettings()">Settings</button>
-    </div>
+  <h1>Platformer 2D</h1>
 
-    <div id="settingsMenu" class="settings">
-      <h2>Settings</h2>
-      <button onclick="toggleSound()">Toggle Sound</button>
-      <button onclick="resetProgress()">Reset Progress</button>
-      <button onclick="backToMenu()">Back</button>
-    </div>
+  <div class="menu">
+    <button class="btn" onclick="showSection('level-select')">Play</button>
+    <button class="btn" onclick="showSection('settings')">Settings</button>
+    <button class="btn" onclick="showSection('shop')">Shop</button>
+    <button class="btn" onclick="resetGame()">Reset Progress</button>
+  </div>
 
-    <div id="levelSelectMenu" class="level-select">
-      <h2>Select Level</h2>
-      <div id="levelButtons"></div>
-      <button onclick="backToMenu()">Back</button>
-    </div>
+  <div class="settings">
+    <h2>Settings</h2>
+    <button class="btn" onclick="toggleSound()">Toggle Sound</button>
+    <button class="btn" onclick="toggleMusic()">Toggle Music</button>
+    <button class="btn" onclick="changeSkin()">Change Player Skin</button>
+    <button class="btn" onclick="showSection('menu')">Back</button>
+  </div>
 
-    <div id="hud" class="hud">
-      <span id="levelLabel">Level: 1</span>
-      <span id="timerLabel">Time: 0s</span>
-    </div>
+  <div class="level-select">
+    <h2>Select Level</h2>
+    <button class="btn" onclick="startLevel(1)">Level 1</button>
+    <button class="btn" onclick="startLevel(2)">Level 2</button>
+    <button class="btn" onclick="startLevel(3)">Level 3</button>
+    <button class="btn" onclick="startLevel(4)">Level 4</button>
+    <button class="btn" onclick="startLevel(5)">Level 5</button>
+    <button class="btn" onclick="showSection('menu')">Back</button>
+  </div>
+
+  <div class="shop">
+    <h2>Shop</h2>
+    <p>Coins: <span id="coinCount">0</span></p>
+    <button class="btn">[Coming Soon] Player Skins</button>
+    <button class="btn">[Coming Soon] Trail Effects</button>
+    <button class="btn" onclick="showSection('menu')">Back</button>
+  </div>
+
+  <div class="hud">
+    <div>Time: <span id="timer">0</span>s</div>
+    <div>Coins: <span id="hudCoins">0</span></div>
   </div>
 
   <script>
-    const canvas = document.getElementById("gameCanvas");
-    const ctx = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const sections = ['menu', 'settings', 'level-select', 'shop'];
+    const timerEl = document.getElementById('timer');
+    const hudCoinsEl = document.getElementById('hudCoins');
+    const coinCountEl = document.getElementById('coinCount');
 
-    const ui = id => document.getElementById(id);
-
-    let currentLevelIndex = 0;
     let timer = 0;
-    let timerInterval;
-    let levels = [];
+    let interval;
+    let coins = parseInt(localStorage.getItem('coins')) || 0;
 
-    function loadLevels() {
-      levels = [
-        {
-          name: "Level 1",
-          spawn: { x: 50, y: 50 },
-          goal: { x: 700, y: 400, width: 30, height: 30 },
-          platforms: [
-            { x: 0, y: 450, width: canvas.width, height: 40 },
-            { x: 300, y: 350, width: 100, height: 20 }
-          ],
-          spikes: [
-            { x: 500, y: 440, width: 40, height: 40 }
-          ],
-          movingPlatforms: []
-        },
-        // Add 4 more levels...
-      ];
+    function showSection(name) {
+      sections.forEach(s => {
+        document.querySelector(`.${s}`).style.display = 'none';
+      });
+      document.querySelector(`.${name}`).style.display = 'flex';
     }
 
-    function resetProgress() {
-      localStorage.clear();
-      alert("Progress reset!");
+    function startLevel(num) {
+      showHUD(true);
+      timer = 0;
+      timerEl.textContent = 0;
+      interval = setInterval(() => {
+        timer++;
+        timerEl.textContent = timer;
+      }, 1000);
+      alert('Level ' + num + ' starting... (Level code coming in Stage 2)');
+    }
+
+    function showHUD(show) {
+      document.querySelector('.hud').style.display = show ? 'flex' : 'none';
     }
 
     function toggleSound() {
-      alert("Sound toggled (not implemented)");
+      alert('Sound toggled! (Feature in progress)');
     }
 
-    function startGame() {
-      ui("mainMenu").classList.remove("show");
-      ui("hud").classList.add("show");
-      loadLevel(currentLevelIndex);
+    function toggleMusic() {
+      alert('Music toggled! (Feature in progress)');
     }
 
-    function openLevelSelect() {
-      ui("mainMenu").classList.remove("show");
-      ui("levelSelectMenu").classList.add("show");
-      populateLevelButtons();
+    function changeSkin() {
+      alert('Player skin changed! (Feature in progress)');
     }
 
-    function openSettings() {
-      ui("mainMenu").classList.remove("show");
-      ui("settingsMenu").classList.add("show");
+    function resetGame() {
+      localStorage.clear();
+      coins = 0;
+      updateCoins();
+      alert('Game reset!');
     }
 
-    function backToMenu() {
-      ui("settingsMenu").classList.remove("show");
-      ui("levelSelectMenu").classList.remove("show");
-      ui("mainMenu").classList.add("show");
+    function updateCoins() {
+      hudCoinsEl.textContent = coins;
+      coinCountEl.textContent = coins;
+      localStorage.setItem('coins', coins);
     }
 
-    function populateLevelButtons() {
-      const container = ui("levelButtons");
-      container.innerHTML = "";
-      levels.forEach((level, index) => {
-        const btn = document.createElement("button");
-        btn.textContent = level.name;
-        btn.onclick = () => {
-          currentLevelIndex = index;
-          ui("levelSelectMenu").classList.remove("show");
-          ui("hud").classList.add("show");
-          loadLevel(index);
-        };
-        container.appendChild(btn);
-      });
-    }
-
-    function loadLevel(index) {
-      level = levels[index];
-      player = new Player(level.spawn.x, level.spawn.y);
-      timer = 0;
-      ui("levelLabel").textContent = `Level: ${index + 1}`;
-      if (timerInterval) clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        timer++;
-        ui("timerLabel").textContent = `Time: ${timer}s`;
-      }, 1000);
-    }
-
-    class Player {
-      constructor(x, y) {
-        this.x = x;
-        this.y = y;
-        this.width = 30;
-        this.height = 30;
-        this.velX = 0;
-        this.velY = 0;
-        this.grounded = false;
-        this.speed = 4;
-        this.jumpForce = -12;
-      }
-
-      update() {
-        const g = 0.6;
-        if (keys["ArrowLeft"]) this.velX = -this.speed;
-        else if (keys["ArrowRight"]) this.velX = this.speed;
-        else this.velX = 0;
-
-        if (keys["ArrowUp"] && this.grounded) {
-          this.velY = this.jumpForce;
-          this.grounded = false;
-        }
-
-        this.velY += g;
-        this.x += this.velX;
-        this.y += this.velY;
-
-        this.grounded = false;
-        for (let plat of level.platforms) {
-          if (this.x < plat.x + plat.width &&
-              this.x + this.width > plat.x &&
-              this.y + this.height < plat.y + 10 &&
-              this.y + this.height + this.velY >= plat.y) {
-            this.y = plat.y - this.height;
-            this.velY = 0;
-            this.grounded = true;
-          }
-        }
-      }
-
-      draw() {
-        ctx.fillStyle = "#0af";
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-      }
-    }
-
-    const keys = {};
-    document.addEventListener("keydown", e => keys[e.key] = true);
-    document.addEventListener("keyup", e => keys[e.key] = false);
-
-    let player, level;
-
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (!player) return;
-      player.update();
-      level.platforms.forEach(p => {
-        ctx.fillStyle = "#888";
-        ctx.fillRect(p.x, p.y, p.width, p.height);
-      });
-      ctx.fillStyle = "lime";
-      const g = level.goal;
-      ctx.fillRect(g.x, g.y, g.width, g.height);
-      player.draw();
-      requestAnimationFrame(draw);
-    }
-
-    loadLevels();
-    draw();
+    // Initialize
+    updateCoins();
+    showSection('menu');
+    showHUD(false);
   </script>
 </body>
 </html>
